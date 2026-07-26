@@ -6,6 +6,8 @@
 
 <title>Disney Dreamlight Valley Tracker</title>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 
 :root {
@@ -134,8 +136,6 @@ main {
     cursor: pointer;
 }
 
-/* CATEGORIEËN */
-
 .category {
     margin-bottom: 24px;
 }
@@ -184,8 +184,6 @@ main {
     gap: 20px;
     margin-top: 16px;
 }
-
-/* KARAKTERKAARTEN */
 
 .character-card {
     background: var(--surface);
@@ -259,8 +257,6 @@ main {
     background: #faeeee;
     color: var(--danger);
 }
-
-/* COMPACT OVERZICHT */
 
 .compact-grid {
     display: grid;
@@ -358,8 +354,6 @@ main {
     text-align: center;
 }
 
-/* ALFABETISCH */
-
 .alphabetical-list {
     display: grid;
     gap: 10px;
@@ -396,8 +390,6 @@ main {
     line-height: 1.6;
 }
 
-/* EMPTY */
-
 .empty-state {
     text-align: center;
     background: var(--surface);
@@ -420,8 +412,6 @@ main {
     margin: 0 auto 22px;
     max-width: 430px;
 }
-
-/* MODAL */
 
 .modal {
     display: none;
@@ -490,8 +480,6 @@ main {
     background: var(--primary);
     color: white;
 }
-
-/* DATABASE */
 
 .database-search {
     width: 100%;
@@ -580,18 +568,35 @@ main {
     display: none !important;
 }
 
-/* RESPONSIVE */
+.loading {
+    text-align: center;
+    padding: 50px;
+    color: var(--muted);
+}
+
+.error-message {
+    background: #faeeee;
+    border: 1px solid #e8caca;
+    color: var(--danger);
+    border-radius: 12px;
+    padding: 20px;
+    line-height: 1.6;
+}
 
 @media (max-width: 1000px) {
+
     .compact-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+
 }
 
 @media (max-width: 700px) {
+
     .compact-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
 }
 
 @media (max-width: 500px) {
@@ -632,6 +637,7 @@ main {
     .character-grid {
         grid-template-columns: 1fr;
     }
+
 }
 
 </style>
@@ -734,7 +740,6 @@ onclick="collapseAll()"
 <div id="app"></div>
 
 </main>
-
 
 <div
 id="characterModal"
@@ -873,152 +878,119 @@ Opslaan
 
 </div>
 
-
 <script>
 
 /* =====================================================
-   VOLLEDIGE UNIEKE KARAKTERDATABASE
+   SUPABASE CONFIGURATIE
+===================================================== */
+
+const SUPABASE_URL =
+    "https://wrqjrvswmqrcbrsgroro.supabase.co";
+
+const SUPABASE_KEY =
+    "sb_publishable_7U-hnclwWTeX1uy_XABi3Q_fb716feu";
+
+const supabaseClient =
+    window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    );
+
+
+/* =====================================================
+   KARAKTERDATABASE
 ===================================================== */
 
 const characterDatabase = [
 
-    /* ALADDIN */
-    { id:"aladdin", name:"Aladdin", movie:"Aladdin", collection:"Dreamlight Valley" },
-    { id:"jafar", name:"Jafar", movie:"Aladdin", collection:"Eternity Isle" },
-    { id:"jasmine", name:"Jasmine", movie:"Aladdin", collection:"Dreamlight Valley" },
+{ id:"aladdin", name:"Aladdin", movie:"Aladdin", collection:"Dreamlight Valley" },
+{ id:"jasmine", name:"Jasmine", movie:"Aladdin", collection:"Dreamlight Valley" },
+{ id:"alice", name:"Alice", movie:"Alice in Wonderland", collection:"Dreamlight Valley" },
+{ id:"cheshire-cat", name:"Cheshire Cat", movie:"Alice in Wonderland", collection:"Dreamlight Valley" },
 
-    /* ALICE IN WONDERLAND */
-    { id:"alice", name:"Alice", movie:"Alice in Wonderland", collection:"Dreamlight Valley" },
-    { id:"cheshire-cat", name:"Cheshire Cat", movie:"Alice in Wonderland", collection:"Dreamlight Valley" },
+{ id:"anna", name:"Anna", movie:"Frozen", collection:"Dreamlight Valley" },
+{ id:"elsa", name:"Elsa", movie:"Frozen", collection:"Dreamlight Valley" },
+{ id:"kristoff", name:"Kristoff", movie:"Frozen", collection:"Dreamlight Valley" },
+{ id:"olaf", name:"Olaf", movie:"Frozen", collection:"Dreamlight Valley" },
 
-    /* BEAUTY AND THE BEAST */
-    { id:"belle", name:"Belle", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
-    { id:"cogsworth", name:"Cogsworth", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
-    { id:"gaston", name:"Gaston", movie:"Beauty and the Beast", collection:"Eternity Isle" },
-    { id:"lumiere", name:"Lumiere", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
-    { id:"the-beast", name:"The Beast", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
+{ id:"belle", name:"Belle", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
+{ id:"the-beast", name:"The Beast", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
+{ id:"cogsworth", name:"Cogsworth", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
+{ id:"lumiere", name:"Lumiere", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
 
-    /* BRAVE */
-    { id:"merida", name:"Merida", movie:"Brave", collection:"Storybook Vale" },
+{ id:"cinderella", name:"Cinderella", movie:"Cinderella", collection:"Dreamlight Valley" },
+{ id:"the-fairy-godmother", name:"The Fairy Godmother", movie:"Cinderella", collection:"Dreamlight Valley" },
 
-    /* CINDERELLA */
-    { id:"cinderella", name:"Cinderella", movie:"Cinderella", collection:"Dreamlight Valley" },
-    { id:"the-fairy-godmother", name:"The Fairy Godmother", movie:"Cinderella", collection:"Dreamlight Valley" },
+{ id:"mirabel", name:"Mirabel", movie:"Encanto", collection:"Dreamlight Valley" },
 
-    /* DREAMLIGHT VALLEY */
-    { id:"the-forgotten", name:"The Forgotten", movie:"Dreamlight Valley", collection:"Dreamlight Valley" },
+{ id:"maui", name:"Maui", movie:"Moana", collection:"Dreamlight Valley" },
+{ id:"moana", name:"Moana", movie:"Moana", collection:"Dreamlight Valley" },
 
-    /* ENCANTO */
-    { id:"mirabel", name:"Mirabel", movie:"Encanto", collection:"Dreamlight Valley" },
+{ id:"mickey-mouse", name:"Mickey Mouse", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
+{ id:"minnie-mouse", name:"Minnie Mouse", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
+{ id:"donald-duck", name:"Donald Duck", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
+{ id:"daisy", name:"Daisy", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
+{ id:"goofy", name:"Goofy", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
+{ id:"scrooge-mcduck", name:"Scrooge McDuck", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
 
-    /* FROZEN */
-    { id:"anna", name:"Anna", movie:"Frozen", collection:"Dreamlight Valley" },
-    { id:"elsa", name:"Elsa", movie:"Frozen", collection:"Dreamlight Valley" },
-    { id:"kristoff", name:"Kristoff", movie:"Frozen", collection:"Dreamlight Valley" },
-    { id:"olaf", name:"Olaf", movie:"Frozen", collection:"Dreamlight Valley" },
+{ id:"ariel", name:"Ariel", movie:"The Little Mermaid", collection:"Dreamlight Valley" },
+{ id:"ursula", name:"Ursula", movie:"The Little Mermaid", collection:"Dreamlight Valley" },
+{ id:"prince-eric", name:"Prince Eric", movie:"The Little Mermaid", collection:"Dreamlight Valley" },
 
-    /* HERCULES */
-    { id:"hades", name:"Hades", movie:"Hercules", collection:"Storybook Vale" },
-    { id:"hercules", name:"Hercules", movie:"Hercules", collection:"Dreamlight Valley" },
-    { id:"phil", name:"Phil", movie:"Hercules", collection:"Dreamlight Valley" },
+{ id:"nala", name:"Nala", movie:"The Lion King", collection:"Dreamlight Valley" },
+{ id:"simba", name:"Simba", movie:"The Lion King", collection:"Dreamlight Valley" },
+{ id:"scar", name:"Scar", movie:"The Lion King", collection:"Dreamlight Valley" },
 
-    /* INSIDE OUT */
-    { id:"joy", name:"Joy", movie:"Inside Out", collection:"Dreamlight Valley" },
-    { id:"sadness", name:"Sadness", movie:"Inside Out", collection:"Dreamlight Valley" },
+{ id:"buzz-lightyear", name:"Buzz Lightyear", movie:"Toy Story", collection:"Dreamlight Valley" },
+{ id:"woody", name:"Woody", movie:"Toy Story", collection:"Dreamlight Valley" },
 
-    /* LADY AND THE TRAMP */
-    { id:"lady", name:"Lady", movie:"Lady and the Tramp", collection:"Dreamlight Valley" },
-    { id:"tramp", name:"Tramp", movie:"Lady and the Tramp", collection:"Dreamlight Valley" },
+{ id:"stitch", name:"Stitch", movie:"Lilo & Stitch", collection:"Dreamlight Valley" },
 
-    /* LILO & STITCH */
-    { id:"stitch", name:"Stitch", movie:"Lilo & Stitch", collection:"Dreamlight Valley" },
+{ id:"wall-e", name:"WALL-E", movie:"WALL-E", collection:"Dreamlight Valley" },
 
-    /* MICKEY & FRIENDS */
-    { id:"daisy", name:"Daisy", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-    { id:"donald-duck", name:"Donald Duck", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-    { id:"goofy", name:"Goofy", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-    { id:"mickey-mouse", name:"Mickey Mouse", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-    { id:"minnie-mouse", name:"Minnie Mouse", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-    { id:"scrooge-mcduck", name:"Scrooge McDuck", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
+{ id:"remy", name:"Remy", movie:"Ratatouille", collection:"Dreamlight Valley" },
 
-    /* MOANA */
-    { id:"maui", name:"Maui", movie:"Moana", collection:"Dreamlight Valley" },
-    { id:"moana", name:"Moana", movie:"Moana", collection:"Dreamlight Valley" },
+{ id:"mother-gothel", name:"Mother Gothel", movie:"Tangled", collection:"Dreamlight Valley" },
 
-    /* MONSTERS, INC. */
-    { id:"mike-wazowski", name:"Mike Wazowski", movie:"Monsters, Inc.", collection:"Dreamlight Valley" },
-    { id:"sulley", name:"Sulley", movie:"Monsters, Inc.", collection:"Dreamlight Valley" },
+{ id:"vanellope", name:"Vanellope", movie:"Wreck-It Ralph", collection:"Dreamlight Valley" },
 
-    /* MULAN */
-    { id:"mulan", name:"Mulan", movie:"Mulan", collection:"Dreamlight Valley" },
-    { id:"mushu", name:"Mushu", movie:"Mulan", collection:"Dreamlight Valley" },
+{ id:"merlin", name:"Merlin", movie:"The Sword in the Stone", collection:"Dreamlight Valley" },
 
-    /* ONE HUNDRED AND ONE DALMATIANS */
-    { id:"cruella", name:"Cruella", movie:"One Hundred and One Dalmatians", collection:"Wishblossom Mountains" },
+{ id:"jack-skellington", name:"Jack Skellington", movie:"The Nightmare Before Christmas", collection:"Dreamlight Valley" },
+{ id:"sally", name:"Sally", movie:"The Nightmare Before Christmas", collection:"Dreamlight Valley" },
 
-    /* OSWALD */
-    { id:"oswald", name:"Oswald", movie:"Oswald the Lucky Rabbit", collection:"Eternity Isle" },
+{ id:"jafar", name:"Jafar", movie:"Aladdin", collection:"Eternity Isle" },
+{ id:"gaston", name:"Gaston", movie:"Beauty and the Beast", collection:"Eternity Isle" },
+{ id:"rapunzel", name:"Rapunzel", movie:"Tangled", collection:"Eternity Isle" },
+{ id:"eve", name:"EVE", movie:"WALL-E", collection:"Eternity Isle" },
+{ id:"oswald", name:"Oswald", movie:"Oswald the Lucky Rabbit", collection:"Eternity Isle" },
 
-    /* PETER PAN */
-    { id:"peter-pan", name:"Peter Pan", movie:"Peter Pan", collection:"Dreamlight Valley" },
-    { id:"tinker-bell", name:"Tinker Bell", movie:"Peter Pan", collection:"Wishblossom Mountains" },
+{ id:"merida", name:"Merida", movie:"Brave", collection:"Storybook Vale" },
+{ id:"hades", name:"Hades", movie:"Hercules", collection:"Storybook Vale" },
+{ id:"aurora", name:"Aurora", movie:"Sleeping Beauty", collection:"Storybook Vale" },
+{ id:"maleficent", name:"Maleficent", movie:"Sleeping Beauty", collection:"Storybook Vale" },
+{ id:"flynn", name:"Flynn", movie:"Tangled", collection:"Storybook Vale" },
 
-    /* POCAHONTAS */
-    { id:"pocahontas", name:"Pocahontas", movie:"Pocahontas", collection:"Dreamlight Valley" },
+{ id:"cruella", name:"Cruella", movie:"One Hundred and One Dalmatians", collection:"Wishblossom Mountains" },
+{ id:"tinker-bell", name:"Tinker Bell", movie:"Peter Pan", collection:"Wishblossom Mountains" },
+{ id:"snow-white", name:"Snow White", movie:"Snow White", collection:"Wishblossom Mountains" },
+{ id:"tigger", name:"Tigger", movie:"Winnie the Pooh", collection:"Wishblossom Mountains" },
 
-    /* RATATOUILLE */
-    { id:"remy", name:"Remy", movie:"Ratatouille", collection:"Dreamlight Valley" },
+{ id:"eeyore", name:"Eeyore", movie:"Winnie the Pooh", collection:"Honeyglow Woods" },
+{ id:"piglet", name:"Piglet", movie:"Winnie the Pooh", collection:"Honeyglow Woods" },
+{ id:"winnie-the-pooh", name:"Winnie the Pooh", movie:"Winnie the Pooh", collection:"Honeyglow Woods" },
 
-    /* SLEEPING BEAUTY */
-    { id:"aurora", name:"Aurora", movie:"Sleeping Beauty", collection:"Storybook Vale" },
-    { id:"maleficent", name:"Maleficent", movie:"Sleeping Beauty", collection:"Storybook Vale" },
-
-    /* SNOW WHITE */
-    { id:"snow-white", name:"Snow White", movie:"Snow White", collection:"Wishblossom Mountains" },
-
-    /* TANGLED */
-    { id:"flynn", name:"Flynn", movie:"Tangled", collection:"Storybook Vale" },
-    { id:"mother-gothel", name:"Mother Gothel", movie:"Tangled", collection:"Dreamlight Valley" },
-    { id:"rapunzel", name:"Rapunzel", movie:"Tangled", collection:"Eternity Isle" },
-
-    /* THE LION KING */
-    { id:"nala", name:"Nala", movie:"The Lion King", collection:"Dreamlight Valley" },
-    { id:"pumbaa", name:"Pumbaa", movie:"The Lion King", collection:"Dreamlight Valley" },
-    { id:"scar", name:"Scar", movie:"The Lion King", collection:"Dreamlight Valley" },
-    { id:"simba", name:"Simba", movie:"The Lion King", collection:"Dreamlight Valley" },
-    { id:"timon", name:"Timon", movie:"The Lion King", collection:"Dreamlight Valley" },
-
-    /* THE LITTLE MERMAID */
-    { id:"ariel", name:"Ariel", movie:"The Little Mermaid", collection:"Dreamlight Valley" },
-    { id:"prince-eric", name:"Prince Eric", movie:"The Little Mermaid", collection:"Dreamlight Valley" },
-    { id:"ursula", name:"Ursula", movie:"The Little Mermaid", collection:"Dreamlight Valley" },
-
-    /* THE PRINCESS AND THE FROG */
-    { id:"tiana", name:"Tiana", movie:"The Princess and the Frog", collection:"Dreamlight Valley" },
-
-    /* THE SWORD IN THE STONE */
-    { id:"merlin", name:"Merlin", movie:"The Sword in the Stone", collection:"Dreamlight Valley" },
-
-    /* THE NIGHTMARE BEFORE CHRISTMAS */
-    { id:"jack-skellington", name:"Jack Skellington", movie:"The Nightmare Before Christmas", collection:"Dreamlight Valley" },
-    { id:"sally", name:"Sally", movie:"The Nightmare Before Christmas", collection:"Dreamlight Valley" },
-
-    /* TOY STORY */
-    { id:"buzz-lightyear", name:"Buzz Lightyear", movie:"Toy Story", collection:"Dreamlight Valley" },
-    { id:"woody", name:"Woody", movie:"Toy Story", collection:"Dreamlight Valley" },
-
-    /* WALL-E */
-    { id:"eve", name:"EVE", movie:"WALL-E", collection:"Eternity Isle" },
-    { id:"wall-e", name:"WALL-E", movie:"WALL-E", collection:"Dreamlight Valley" },
-
-    /* WINNIE THE POOH */
-    { id:"eeyore", name:"Eeyore", movie:"Winnie the Pooh", collection:"Honeyglow Woods" },
-    { id:"piglet", name:"Piglet", movie:"Winnie the Pooh", collection:"Honeyglow Woods" },
-    { id:"tigger", name:"Tigger", movie:"Winnie the Pooh", collection:"Wishblossom Mountains" },
-    { id:"winnie-the-pooh", name:"Winnie the Pooh", movie:"Winnie the Pooh", collection:"Honeyglow Woods" },
-
-    /* WRECK-IT RALPH */
-    { id:"vanellope", name:"Vanellope", movie:"Wreck-It Ralph", collection:"Dreamlight Valley" }
+{ id:"tiana", name:"Tiana", movie:"The Princess and the Frog", collection:"Dreamlight Valley" },
+{ id:"hercules", name:"Hercules", movie:"Hercules", collection:"Storybook Vale" },
+{ id:"lady", name:"Lady", movie:"Lady and the Tramp", collection:"Dreamlight Valley" },
+{ id:"peter-pan", name:"Peter Pan", movie:"Peter Pan", collection:"Storybook Vale" },
+{ id:"the-forgotten", name:"The Forgotten", movie:"Disney Dreamlight Valley", collection:"Dreamlight Valley" },
+{ id:"pocahontas", name:"Pocahontas", movie:"Pocahontas", collection:"Dreamlight Valley" },
+{ id:"joy", name:"Joy", movie:"Inside Out", collection:"Dreamlight Valley" },
+{ id:"tramp", name:"Tramp", movie:"Lady and the Tramp", collection:"Dreamlight Valley" },
+{ id:"sadness", name:"Sadness", movie:"Inside Out", collection:"Dreamlight Valley" },
+{ id:"phil", name:"Phil", movie:"Hercules", collection:"Storybook Vale" },
+{ id:"black-rabbit", name:"Black Rabbit", movie:"Disney Dreamlight Valley", collection:"Wishblossom Mountains" }
 
 ];
 
@@ -1048,13 +1020,12 @@ const categoryIcons = {
    DATA
 ===================================================== */
 
-let trackerData =
-    JSON.parse(
-        localStorage.getItem("dreamlightTracker")
-    ) || [];
+let trackerData = [];
 
 let currentView = "compact";
+
 let editingId = null;
+
 let selectedDatabaseCharacter = null;
 
 let expandedCategories = {
@@ -1067,15 +1038,62 @@ let expandedCategories = {
 
 
 /* =====================================================
-   OPSLAAN
+   ONLINE DATA LADEN
 ===================================================== */
 
-function saveTracker() {
+async function loadTracker() {
 
-    localStorage.setItem(
-        "dreamlightTracker",
-        JSON.stringify(trackerData)
-    );
+    const { data, error } =
+        await supabaseClient
+            .from("characters")
+            .select("*")
+            .order("added_at", {
+                ascending: true
+            });
+
+    if (error) {
+
+        console.error(error);
+
+        document.getElementById("app").innerHTML = `
+
+            <div class="error-message">
+
+                <strong>De tracker kon niet worden geladen.</strong>
+
+                <br><br>
+
+                Controleer of je Supabase URL en API-key correct zijn ingevuld.
+
+                <br><br>
+
+                Technische fout:
+
+                <br>
+
+                ${error.message}
+
+            </div>
+
+        `;
+
+        return;
+
+    }
+
+    trackerData = data.map(character => ({
+
+        characterId: character.character_id,
+
+        specialty: character.specialty,
+
+        level: character.level,
+
+        addedAt: character.added_at
+
+    }));
+
+    render();
 
 }
 
@@ -1087,13 +1105,12 @@ function saveTracker() {
 function getTrackedCharacters() {
 
     return trackerData
+
         .map(trackerCharacter => {
 
             const databaseCharacter =
-                characterDatabase.find(
-                    character =>
-                        character.id ===
-                        trackerCharacter.characterId
+                characterDatabase.find(character =>
+                    character.id === trackerCharacter.characterId
                 );
 
             if (!databaseCharacter) {
@@ -1101,13 +1118,22 @@ function getTrackedCharacters() {
             }
 
             return {
+
                 ...databaseCharacter,
-                specialty: trackerCharacter.specialty,
-                level: trackerCharacter.level,
-                addedAt: trackerCharacter.addedAt
+
+                specialty:
+                    trackerCharacter.specialty,
+
+                level:
+                    trackerCharacter.level,
+
+                addedAt:
+                    trackerCharacter.addedAt
+
             };
 
         })
+
         .filter(character => character !== null);
 
 }
@@ -1123,6 +1149,7 @@ function getFilteredCharacters() {
             .trim();
 
     return getTrackedCharacters()
+
         .filter(character =>
 
             character.name
@@ -1146,16 +1173,13 @@ function getFilteredCharacters() {
 }
 
 
-/* =====================================================
-   VOLGORDE
-===================================================== */
-
 function sortCharactersInCategory(characters) {
 
-    return characters.sort(
-        (a, b) =>
-            (a.addedAt || 0) -
-            (b.addedAt || 0)
+    return characters.sort((a, b) =>
+
+        (a.addedAt || 0) -
+        (b.addedAt || 0)
+
     );
 
 }
@@ -1197,8 +1221,7 @@ function render() {
                 </h2>
 
                 <p>
-                    Voeg een karakter toe uit de
-                    Dreamlight Valley-database.
+                    Voeg een karakter toe uit de Dreamlight Valley-database.
                 </p>
 
                 <button
@@ -1213,17 +1236,22 @@ function render() {
         `;
 
         return;
+
     }
 
     if (currentView === "categories") {
 
         renderCategories(characters);
 
-    } else if (currentView === "compact") {
+    }
+
+    else if (currentView === "compact") {
 
         renderCompact(characters);
 
-    } else {
+    }
+
+    else {
 
         renderAlphabetical(characters);
 
@@ -1265,6 +1293,7 @@ function updateNavigation() {
 function setView(view) {
 
     currentView = view;
+
     render();
 
 }
@@ -1290,10 +1319,11 @@ function renderCompact(characters) {
 
         const categoryCharacters =
             sortCharactersInCategory(
-                characters.filter(
-                    character =>
-                        character.specialty === category
+
+                characters.filter(character =>
+                    character.specialty === category
                 )
+
             );
 
         const section =
@@ -1307,6 +1337,7 @@ function renderCompact(characters) {
             <div class="compact-category-header">
 
                 ${categoryIcons[category]}
+
                 ${category}
 
                 <span
@@ -1320,9 +1351,7 @@ function renderCompact(characters) {
 
             </div>
 
-            <div
-                class="compact-character-list"
-            ></div>
+            <div class="compact-character-list"></div>
 
         `;
 
@@ -1409,15 +1438,14 @@ function renderCompact(characters) {
 
 
 /* =====================================================
-   LEVEL AANPASSEN
+   LEVEL ONLINE AANPASSEN
 ===================================================== */
 
-function changeLevel(characterId, amount) {
+async function changeLevel(characterId, amount) {
 
     const character =
-        trackerData.find(
-            item =>
-                item.characterId === characterId
+        trackerData.find(item =>
+            item.characterId === characterId
         );
 
     if (!character) {
@@ -1431,10 +1459,34 @@ function changeLevel(characterId, amount) {
         return;
     }
 
+    const { error } =
+        await supabaseClient
+
+            .from("characters")
+
+            .update({
+                level: newLevel
+            })
+
+            .eq(
+                "character_id",
+                characterId
+            );
+
+    if (error) {
+
+        alert(
+            "Het level kon niet worden opgeslagen: " +
+            error.message
+        );
+
+        return;
+
+    }
+
     character.level =
         newLevel;
 
-    saveTracker();
     render();
 
 }
@@ -1455,10 +1507,11 @@ function renderCategories(characters) {
 
         const categoryCharacters =
             sortCharactersInCategory(
-                characters.filter(
-                    character =>
-                        character.specialty === category
+
+                characters.filter(character =>
+                    character.specialty === category
                 )
+
             );
 
         if (categoryCharacters.length === 0) {
@@ -1493,7 +1546,9 @@ function renderCategories(characters) {
                         ${category}
 
                         <span class="category-count">
+
                             ${categoryCharacters.length}
+
                         </span>
 
                     </h2>
@@ -1632,9 +1687,8 @@ function renderAlphabetical(characters) {
         document.getElementById("app");
 
     const sortedCharacters =
-        [...characters].sort(
-            (a, b) =>
-                a.name.localeCompare(b.name)
+        [...characters].sort((a, b) =>
+            a.name.localeCompare(b.name)
         );
 
     app.innerHTML = `
@@ -1677,12 +1731,15 @@ function renderAlphabetical(characters) {
 
                     <br>
 
-                    ${categoryIcons[character.specialty]}
+                    ${
+                        categoryIcons[
+                            character.specialty
+                        ]
+                    }
+
                     ${character.specialty}
 
-                    · 🎬
-
-                    ${character.movie}
+                    · 🎬 ${character.movie}
 
                 </div>
 
@@ -1757,6 +1814,7 @@ function collapseAll() {
 function openAddModal() {
 
     editingId = null;
+
     selectedDatabaseCharacter = null;
 
     document
@@ -1800,45 +1858,42 @@ function renderDatabaseList() {
             .trim();
 
     const existingIds =
-        trackerData.map(
-            character =>
-                character.characterId
+        trackerData.map(character =>
+            character.characterId
         );
 
     const availableCharacters =
+
         characterDatabase
 
-            .filter(
-                character =>
-                    !existingIds.includes(
-                        character.id
-                    )
+            .filter(character =>
+                !existingIds.includes(
+                    character.id
+                )
             )
 
-            .filter(
-                character =>
+            .filter(character =>
 
-                    character.name
-                        .toLowerCase()
-                        .includes(searchTerm)
+                character.name
+                    .toLowerCase()
+                    .includes(searchTerm)
 
-                    ||
+                ||
 
-                    character.movie
-                        .toLowerCase()
-                        .includes(searchTerm)
+                character.movie
+                    .toLowerCase()
+                    .includes(searchTerm)
 
-                    ||
+                ||
 
-                    character.collection
-                        .toLowerCase()
-                        .includes(searchTerm)
+                character.collection
+                    .toLowerCase()
+                    .includes(searchTerm)
 
             )
 
-            .sort(
-                (a, b) =>
-                    a.name.localeCompare(b.name)
+            .sort((a, b) =>
+                a.name.localeCompare(b.name)
             );
 
     const list =
@@ -1871,7 +1926,9 @@ function renderDatabaseList() {
             <div class="database-item-info">
 
                 <div class="database-item-name">
+
                     ${character.name}
+
                 </div>
 
                 <div class="database-item-meta">
@@ -1962,21 +2019,16 @@ function selectDatabaseCharacter(character) {
 function editCharacter(id) {
 
     const trackerCharacter =
-        trackerData.find(
-            character =>
-                character.characterId === id
+        trackerData.find(character =>
+            character.characterId === id
         );
 
     const databaseCharacter =
-        characterDatabase.find(
-            character =>
-                character.id === id
+        characterDatabase.find(character =>
+            character.id === id
         );
 
-    if (
-        !trackerCharacter ||
-        !databaseCharacter
-    ) {
+    if (!trackerCharacter || !databaseCharacter) {
         return;
     }
 
@@ -2067,7 +2119,7 @@ document
     .getElementById("characterForm")
     .addEventListener(
         "submit",
-        function(event) {
+        async function(event) {
 
             event.preventDefault();
 
@@ -2085,11 +2137,41 @@ document
 
             if (editingId) {
 
-                const character =
-                    trackerData.find(
-                        item =>
-                            item.characterId ===
+                const { error } =
+                    await supabaseClient
+
+                        .from("characters")
+
+                        .update({
+
+                            specialty:
+                                specialty,
+
+                            level:
+                                level
+
+                        })
+
+                        .eq(
+                            "character_id",
                             editingId
+                        );
+
+                if (error) {
+
+                    alert(
+                        "Het karakter kon niet worden opgeslagen: " +
+                        error.message
+                    );
+
+                    return;
+
+                }
+
+                const character =
+                    trackerData.find(item =>
+                        item.characterId ===
+                        editingId
                     );
 
                 character.specialty =
@@ -2098,11 +2180,23 @@ document
                 character.level =
                     level;
 
-            } else {
+            }
 
-                trackerData.push({
+            else {
 
-                    characterId:
+                if (!selectedDatabaseCharacter) {
+
+                    alert(
+                        "Selecteer eerst een karakter."
+                    );
+
+                    return;
+
+                }
+
+                const newCharacter = {
+
+                    character_id:
                         selectedDatabaseCharacter.id,
 
                     specialty:
@@ -2111,20 +2205,58 @@ document
                     level:
                         level,
 
-                    addedAt:
+                    added_at:
                         Date.now()
+
+                };
+
+                const { data, error } =
+                    await supabaseClient
+
+                        .from("characters")
+
+                        .insert(
+                            newCharacter
+                        )
+
+                        .select()
+                        .single();
+
+                if (error) {
+
+                    alert(
+                        "Het karakter kon niet worden toegevoegd: " +
+                        error.message
+                    );
+
+                    return;
+
+                }
+
+                trackerData.push({
+
+                    characterId:
+                        data.character_id,
+
+                    specialty:
+                        data.specialty,
+
+                    level:
+                        data.level,
+
+                    addedAt:
+                        data.added_at
 
                 });
 
             }
-
-            saveTracker();
 
             closeModal();
 
             render();
 
         }
+
     );
 
 
@@ -2132,35 +2264,56 @@ document
    VERWIJDEREN
 ===================================================== */
 
-function deleteCharacter(id) {
+async function deleteCharacter(id) {
 
     const character =
-        getTrackedCharacters().find(
-            character =>
-                character.id === id
+        getTrackedCharacters().find(character =>
+            character.id === id
         );
 
     if (!character) {
         return;
     }
 
-    if (
-        !confirm(
-            "Weet je zeker dat je " +
-            character.name +
-            " wilt verwijderen?"
-        )
-    ) {
+    if (!confirm(
+
+        "Weet je zeker dat je " +
+        character.name +
+        " wilt verwijderen?"
+
+    )) {
+
         return;
+
+    }
+
+    const { error } =
+        await supabaseClient
+
+            .from("characters")
+
+            .delete()
+
+            .eq(
+                "character_id",
+                id
+            );
+
+    if (error) {
+
+        alert(
+            "Het karakter kon niet worden verwijderd: " +
+            error.message
+        );
+
+        return;
+
     }
 
     trackerData =
-        trackerData.filter(
-            character =>
-                character.characterId !== id
+        trackerData.filter(character =>
+            character.characterId !== id
         );
-
-    saveTracker();
 
     render();
 
@@ -2230,7 +2383,9 @@ function createPlaceholder(name) {
 
         "https://placehold.co/400x400?text=" +
 
-        encodeURIComponent(name)
+        encodeURIComponent(
+            name
+        )
 
     );
 
@@ -2241,7 +2396,14 @@ function createPlaceholder(name) {
    START
 ===================================================== */
 
-render();
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        loadTracker();
+
+    }
+);
 
 </script>
 
