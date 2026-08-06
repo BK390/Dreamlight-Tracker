@@ -1,0 +1,11 @@
+{
+  "name": "ddv-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.53.0",
+    "axios": "^1.11.0",
+    "cheerio": "^1.1.2"
+  }
+}
