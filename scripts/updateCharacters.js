@@ -58,28 +58,70 @@ function createId(name) {
 ===================================================== */
 
 async function wikiGet(params) {
-  const response = await axios.get(WIKI_API, {
-    params: {
-      ...params,
-      format: "json",
-      formatversion: 2
-    },
+  try {
+    const response = await axios.get(WIKI_API, {
+      params: {
+        ...params,
+        format: "json",
+        formatversion: 2
+      },
 
-    headers: {
-      "User-Agent": USER_AGENT
-    },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; DDV-Tracker/1.0)",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9"
+      },
 
-    timeout: 30000
-  });
+      timeout: 30000,
 
-  if (response.data?.error) {
+      validateStatus: () => true
+    });
+
+    if (response.status !== 200) {
+      console.error("");
+      console.error("========================================");
+      console.error("WIKI REQUEST FOUT");
+      console.error("========================================");
+      console.error(`HTTP status: ${response.status}`);
+      console.error(`URL: ${response.config.url}`);
+      console.error(`Request: ${JSON.stringify(params)}`);
+      console.error("Response:");
+      console.error(
+        typeof response.data === "string"
+          ? response.data.substring(0, 1000)
+          : JSON.stringify(response.data).substring(0, 1000)
+      );
+      console.error("========================================");
+
+      throw new Error(
+        `Dreamlight Valley Wiki gaf HTTP ${response.status}`
+      );
+    }
+
+    if (response.data?.error) {
+      throw new Error(
+        response.data.error.info ||
+        "MediaWiki API fout"
+      );
+    }
+
+    return response.data;
+
+  } catch (error) {
+
+    if (
+      error.message &&
+      error.message.startsWith(
+        "Dreamlight Valley Wiki gaf HTTP"
+      )
+    ) {
+      throw error;
+    }
+
     throw new Error(
-      response.data.error.info ||
-      "MediaWiki API fout"
+      `Wiki aanvraag mislukt: ${error.message}`
     );
   }
-
-  return response.data;
 }
 
 
