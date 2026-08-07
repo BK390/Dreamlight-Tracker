@@ -2,1185 +2,871 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { createClient } from "@supabase/supabase-js";
 
-/*
-=====================================================
-CONFIGURATIE
-=====================================================
-*/
+const WIKI_API = "https://dreamlightvalleywiki.com/api.php";
+const USER_AGENT = "DDV-Tracker-Character-Sync/1.0";
 
-const WIKI_API =
-    "https://dreamlightvalleywiki.com/api.php";
-
-const WIKI_BASE =
-    "https://dreamlightvalleywiki.com/";
-
-const SUPABASE_URL =
-    process.env.SUPABASE_URL;
-
-const SUPABASE_SERVICE_ROLE_KEY =
-    process.env.SUPABASE_SERVICE_KEY;
-
-const supabase = createClient(
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY
-);
-
-
-/*
-=====================================================
-CONTROLE
-=====================================================
-*/
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 if (!SUPABASE_URL) {
-    throw new Error(
-        "SUPABASE_URL ontbreekt in de GitHub Secrets."
-    );
+  throw new Error("SUPABASE_URL ontbreekt.");
 }
 
-if (!SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error(
-        "SUPABASE_SERVICE_ROLE_KEY ontbreekt in de GitHub Secrets."
-    );
+if (!SUPABASE_SERVICE_KEY) {
+  throw new Error("SUPABASE_SERVICE_KEY ontbreekt.");
 }
 
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_SERVICE_KEY
+);
 
-/*
-=====================================================
-ALGEMENE HULPFUNCTIES
-=====================================================
-*/
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+const sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 
-function cleanText(text) {
+/* =====================================================
+   TEKST OPSCHONEN
+===================================================== */
 
-    if (!text) {
-        return "";
-    }
-
-    return text
-        .replace(/\s+/g, " ")
-        .replace(/\u00a0/g, " ")
-        .trim();
-
+function cleanText(value = "") {
+  return value
+    .replace(/\s+/g, " ")
+    .replace(/\u00a0/g, " ")
+    .trim();
 }
 
 
-/*
-=====================================================
-ID MAKEN
-=====================================================
-*/
+/* =====================================================
+   ID MAKEN
+===================================================== */
 
 function createId(name) {
-
-    return name
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/&/g, "and")
-        .replace(/['’]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 
-/*
-=====================================================
-MEDIAWIKI API
-=====================================================
-*/
+/* =====================================================
+   WIKI API
+===================================================== */
 
-/*
-    We halen alle pagina's op die onder de categorie
-    "Characters" vallen.
+async function wikiGet(params) {
+  const response = await axios.get(WIKI_API, {
+    params: {
+      ...params,
+      format: "json",
+      formatversion: 2
+    },
 
-    Daarna controleren we per pagina of het daadwerkelijk
-    een Character is.
-*/
+    headers: {
+      "User-Agent": USER_AGENT
+    },
 
-async function getCharacterPageTitles() {
+    timeout: 30000
+  });
 
-    console.log(
-        "Wiki: karakterpagina's ophalen..."
+  if (response.data?.error) {
+    throw new Error(
+      response.data.error.info ||
+      "MediaWiki API fout"
     );
+  }
 
-    const titles = [];
-
-    let continueToken = null;
-
-    do {
-
-        const params = {
-
-            action: "query",
-
-            format: "json",
-
-            list: "categorymembers",
-
-            cmtitle: "Category:Characters",
-
-            cmnamespace: 0,
-
-            cmlimit: "max"
-
-        };
-
-        if (continueToken) {
-
-            params.cmcontinue =
-                continueToken;
-
-        }
-
-        const response = await axios.get(
-            WIKI_API,
-            {
-                params,
-                headers: {
-                    "User-Agent":
-                        "DDV-Character-Tracker/1.0"
-                },
-                timeout: 30000
-            }
-        );
-
-        const data = response.data;
-
-        if (
-            !data.query ||
-            !data.query.categorymembers
-        ) {
-
-            throw new Error(
-                "Geen karakterpagina's ontvangen van de wiki."
-            );
-
-        }
-
-        for (
-            const page
-            of data.query.categorymembers
-        ) {
-
-            if (
-                page.ns === 0 &&
-                page.title
-            ) {
-
-                titles.push(
-                    page.title
-                );
-
-            }
-
-        }
-
-        continueToken =
-            data.continue?.cmcontinue || null;
-
-    } while (continueToken);
-
-
-    /*
-        Dubbele titels verwijderen.
-    */
-
-    return [
-        ...new Set(titles)
-    ];
-
+  return response.data;
 }
 
 
-/*
-=====================================================
-PAGINA OPHALEN
-=====================================================
-*/
+/* =====================================================
+   ALLE PAGINA'S UIT CATEGORY:CHARACTERS
+===================================================== */
 
-async function getWikiPage(title) {
+async function getCharacterTitles() {
 
-    const response = await axios.get(
-        WIKI_API,
-        {
-            params: {
+  const titles = [];
 
-                action: "parse",
+  let cmcontinue;
 
-                page: title,
+  do {
 
-                prop: "text|categories",
-
-                format: "json",
-
-                redirects: 1
-
-            },
-
-            headers: {
-
-                "User-Agent":
-                    "DDV-Character-Tracker/1.0"
-
-            },
-
-            timeout: 30000
-
-        }
-    );
-
-
-    if (
-        !response.data ||
-        !response.data.parse
-    ) {
-
-        throw new Error(
-            `Wiki-pagina kon niet worden gelezen: ${title}`
-        );
-
-    }
-
-
-    return response.data.parse;
-
-}
-
-
-/*
-=====================================================
-INFOBOX WAARDE OPHALEN
-=====================================================
-*/
-
-function getInfoboxValue(
-    $,
-    label
-) {
-
-    let result = "";
-
-
-    $("table").each(
-        (_, table) => {
-
-            if (result) {
-                return;
-            }
-
-
-            const rows =
-                $(table).find("tr");
-
-
-            rows.each(
-                (_, row) => {
-
-                    if (result) {
-                        return;
-                    }
-
-
-                    const cells =
-                        $(row).find(
-                            "th, td"
-                        );
-
-
-                    if (
-                        cells.length < 2
-                    ) {
-
-                        return;
-
-                    }
-
-
-                    const first =
-                        cleanText(
-                            $(cells[0])
-                                .text()
-                        );
-
-
-                    if (
-                        first
-                            .toLowerCase()
-                            .includes(
-                                label.toLowerCase()
-                            )
-                    {
-
-                        result =
-                            cleanText(
-                                $(cells[1])
-                                    .text()
-                            );
-
-                    }
-
-                }
-            );
-
-        }
-    );
-
-
-    return result;
-
-}
-
-
-/*
-=====================================================
-AFBEELDING OPHALEN
-=====================================================
-*/
-
-function getCharacterImage(
-    $,
-    title
-) {
-
-    /*
-        Eerst proberen we de hoofdafbeelding
-        uit de infobox te halen.
-    */
-
-    let image = "";
-
-
-    $("table").each(
-        (_, table) => {
-
-            if (image) {
-                return;
-            }
-
-
-            const rows =
-                $(table).find("tr");
-
-
-            rows.each(
-                (_, row) => {
-
-                    if (image) {
-                        return;
-                    }
-
-
-                    const cells =
-                        $(row).find(
-                            "th, td"
-                        );
-
-
-                    if (
-                        cells.length < 2
-                    ) {
-
-                        return;
-
-                    }
-
-
-                    const first =
-                        cleanText(
-                            $(cells[0])
-                                .text()
-                        );
-
-
-                    if (
-                        first
-                            .toLowerCase()
-                            .includes("type")
-                    ) {
-
-                        const img =
-                            $(cells[1])
-                                .find("img")
-                                .first();
-
-
-                        if (
-                            img.length
-                        ) {
-
-                            image =
-                                img.attr(
-                                    "src"
-                                ) || "";
-
-                        }
-
-                    }
-
-                }
-            );
-
-        }
-    );
-
-
-    /*
-        Als de infobox geen afbeelding
-        oplevert, zoeken we naar een
-        afbeelding met de paginanaam.
-    */
-
-    if (!image) {
-
-        $("img").each(
-            (_, img) => {
-
-                if (image) {
-                    return;
-                }
-
-
-                const src =
-                    $(img).attr(
-                        "src"
-                    ) || "";
-
-
-                const alt =
-                    cleanText(
-                        $(img).attr(
-                            "alt"
-                        ) || ""
-                    );
-
-
-                if (
-                    alt
-                        .toLowerCase()
-                        .includes(
-                            title.toLowerCase()
-                        )
-                ) {
-
-                    image = src;
-
-                }
-
-            }
-        );
-
-    }
-
-
-    if (!image) {
-
-        return "";
-
-    }
-
-
-    /*
-        Wiki gebruikt soms relatieve
-        afbeeldings-URL's.
-    */
-
-    if (
-        image.startsWith("//")
-    ) {
-
-        return "https:" + image;
-
-    }
-
-
-    if (
-        image.startsWith("/")
-    ) {
-
-        return WIKI_BASE
-            .replace(/\/$/, "")
-            + image;
-
-    }
-
-
-    return image;
-
-}
-
-
-/*
-=====================================================
-COLLECTIE BEPALEN
-=====================================================
-*/
-
-function getCollection(
-    parsedPage
-) {
-
-    const categories =
-        parsedPage.categories || [];
-
-
-    /*
-        We zoeken expliciet naar:
-
-        Dreamlight Valley Characters Collection
-        Eternity Isle Characters Collection
-        Storybook Vale Characters Collection
-        enz.
-
-        Dit voorkomt dat we de algemene
-        "Collection: Dreamlight Valley"
-        uit de infobox gebruiken.
-    */
-
-    for (
-        const category
-        of categories
-    ) {
-
-        const name =
-            category["*"] ||
-            category.title ||
-            "";
-
-
-        const match =
-            name.match(
-                /^(.+?) Characters Collection$/i
-            );
-
-
-        if (match) {
-
-            return cleanText(
-                match[1]
-            );
-
-        }
-
-    }
-
-
-    return "";
-
-}
-
-
-/*
-=====================================================
-FILM BEPALEN
-=====================================================
-*/
-
-function getMovie(
-    $,
-    title
-) {
-
-    /*
-        De "From" waarde in de infobox
-        bevat normaal gesproken de
-        Disney-film/franchise.
-    */
-
-    const movie =
-        getInfoboxValue(
-            $,
-            "From"
-        );
-
-
-    if (movie) {
-
-        return movie;
-
-    }
-
-
-    /*
-        Fallback:
-        de tweede regel in de infobox
-        bevat bij veel pagina's de film.
-    */
-
-    let fallback = "";
-
-
-    $("table").each(
-        (_, table) => {
-
-            if (fallback) {
-                return;
-            }
-
-
-            const rows =
-                $(table).find("tr");
-
-
-            if (
-                rows.length >= 2
-            ) {
-
-                const row =
-                    rows.eq(1);
-
-
-                const cells =
-                    row.find(
-                        "th, td"
-                    );
-
-
-                if (
-                    cells.length === 1
-                ) {
-
-                    fallback =
-                        cleanText(
-                            cells
-                                .first()
-                                .text()
-                        );
-
-                }
-
-            }
-
-        }
-    );
-
-
-    return fallback;
-
-}
-
-
-/*
-=====================================================
-KARAKTER VERWERKEN
-=====================================================
-*/
-
-async function parseCharacter(
-    title
-) {
-
-    const parsed =
-        await getWikiPage(
-            title
-        );
-
-
-    const html =
-        parsed.text["*"];
-
-
-    const $ =
-        cheerio.load(
-            html
-        );
-
-
-    /*
-        Controleer eerst Type.
-    */
-
-    const type =
-        getInfoboxValue(
-            $,
-            "Type"
-        );
-
-
-    if (
-        type.toLowerCase()
-            !== "character"
-    ) {
-
-        return null;
-
-    }
-
-
-    /*
-        Naam
-    */
-
-    let name =
-        cleanText(
-            $("h1")
-                .first()
-                .text()
-        );
-
-
-    if (!name) {
-
-        name = title;
-
-    }
-
-
-    /*
-        Film
-    */
-
-    const movie =
-        getMovie(
-            $,
-            title
-        );
-
-
-    /*
-        Collectie / uitbreiding
-    */
-
-    const collection =
-        getCollection(
-            parsed
-        );
-
-
-    /*
-        Afbeelding
-    */
-
-    const image =
-        getCharacterImage(
-            $,
-            title
-        );
-
-
-    /*
-        ID
-    */
-
-    const id =
-        createId(
-            name
-        );
-
-
-    return {
-
-        id,
-
-        name,
-
-        movie,
-
-        collection,
-
-        image
-
+    const params = {
+      action: "query",
+      list: "categorymembers",
+      cmtitle: "Category:Characters",
+      cmnamespace: 0,
+      cmtype: "page",
+      cmlimit: "max"
     };
 
+    if (cmcontinue) {
+      params.cmcontinue = cmcontinue;
+    }
+
+    const data = await wikiGet(params);
+
+    const members =
+      data.query?.categorymembers || [];
+
+    for (const member of members) {
+
+      if (
+        member.ns === 0 &&
+        member.title
+      ) {
+
+        titles.push(member.title);
+
+      }
+
+    }
+
+    cmcontinue =
+      data.continue?.cmcontinue;
+
+  } while (cmcontinue);
+
+
+  return [
+    ...new Set(titles)
+  ];
+
 }
 
 
-/*
-=====================================================
-SUPABASE BESTAANDE RECORDS
-=====================================================
-*/
+/* =====================================================
+   INDIVIDUELE WIKI PAGINA
+===================================================== */
 
-async function getExistingCharacters() {
+async function getPage(title) {
 
-    console.log(
-        "Supabase: bestaande characters ophalen..."
+  const data = await wikiGet({
+
+    action: "parse",
+
+    page: title,
+
+    prop: "text|categories",
+
+    redirects: 1
+
+  });
+
+
+  if (!data.parse) {
+
+    throw new Error(
+      `Pagina niet gevonden: ${title}`
+    );
+
+  }
+
+
+  return data.parse;
+
+}
+
+
+/* =====================================================
+   INFOBOX RIJ VINDEN
+===================================================== */
+
+function getInfoboxRow($, label) {
+
+  let result = null;
+
+
+  $("table").each((_, table) => {
+
+    if (result) {
+      return;
+    }
+
+
+    $(table).find("tr").each((_, row) => {
+
+      if (result) {
+        return;
+      }
+
+
+      const cells =
+        $(row).find("th, td");
+
+
+      if (cells.length < 2) {
+        return;
+      }
+
+
+      const key =
+        cleanText(
+          $(cells[0]).text()
+        ).replace(/:$/, "");
+
+
+      if (
+        key.toLowerCase() ===
+        label.toLowerCase()
+      ) {
+
+        result =
+          cells.eq(1);
+
+      }
+
+    });
+
+  });
+
+
+  return result;
+
+}
+
+
+/* =====================================================
+   INFOBOX WAARDE
+===================================================== */
+
+function getInfoboxValue($, label) {
+
+  const cell =
+    getInfoboxRow(
+      $,
+      label
     );
 
 
-    const {
-        data,
-        error
-    } = await supabase
+  if (!cell) {
+    return "";
+  }
 
-        .from(
-            "characters_master"
+
+  return cleanText(
+    cell.text()
+  );
+
+}
+
+
+/* =====================================================
+   FILM / UNIVERSUM
+===================================================== */
+
+function getMovie($) {
+
+  const cell =
+    getInfoboxRow(
+      $,
+      "From"
+    );
+
+
+  if (!cell) {
+    return "";
+  }
+
+
+  /*
+     De wiki gebruikt hier meestal
+     een link naar het betreffende
+     Disney-universum.
+  */
+
+  const link =
+    cell.find("a").first();
+
+
+  if (link.length) {
+
+    const text =
+      cleanText(
+        link.text()
+      );
+
+
+    if (text) {
+      return text;
+    }
+
+
+    const title =
+      cleanText(
+        link.attr("title") || ""
+      );
+
+
+    if (title) {
+
+      return title
+        .replace(
+          /^Image:\s*/i,
+          ""
         )
-
-        .select(
-            "id,name,movie,collection,image"
-        );
-
-
-    if (error) {
-
-        throw new Error(
-            `Supabase fout bij ophalen: ${error.message}`
+        .replace(
+          /\.png$/i,
+          ""
         );
 
     }
 
+  }
 
-    return data || [];
+
+  let value =
+    cleanText(
+      cell.text()
+    );
+
+
+  value =
+    value.replace(
+      /^Image\s*/i,
+      ""
+    );
+
+
+  value =
+    value.replace(
+      /\.png$/i,
+      ""
+    );
+
+
+  return value;
 
 }
 
 
-/*
-=====================================================
-CHARACTER OPSLAAN
-=====================================================
-*/
+/* =====================================================
+   COLLECTION
+===================================================== */
 
-async function saveCharacter(
-    character
+function getCollection(parsed) {
+
+  const categories =
+    parsed.categories || [];
+
+
+  for (
+    const category
+    of categories
+  ) {
+
+    const name =
+      cleanText(
+        category.title ||
+        category["*"] ||
+        ""
+      );
+
+
+    const match =
+      name.match(
+        /^(.+?) Characters Collection$/i
+      );
+
+
+    if (match) {
+
+      return match[1].trim();
+
+    }
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =====================================================
+   AFBEELDING
+===================================================== */
+
+async function getImage(title) {
+
+  const data =
+    await wikiGet({
+
+      action: "query",
+
+      titles: title,
+
+      prop: "pageimages",
+
+      piprop: "original"
+
+    });
+
+
+  const pages =
+    data.query?.pages || [];
+
+
+  const page =
+    pages[0];
+
+
+  return (
+    page?.original?.source ||
+    ""
+  );
+
+}
+
+
+/* =====================================================
+   KARAKTER VERWERKEN
+===================================================== */
+
+async function parseCharacter(title) {
+
+  const parsed =
+    await getPage(title);
+
+
+  const html =
+    parsed.text || "";
+
+
+  const $ =
+    cheerio.load(html);
+
+
+  /*
+     Alleen pagina's die daadwerkelijk
+     bij een Characters Collection horen.
+
+     Hiermee wordt bijvoorbeeld
+     The Lorekeeper automatisch uitgesloten.
+  */
+
+  const collection =
+    getCollection(parsed);
+
+
+  if (!collection) {
+
+    return null;
+
+  }
+
+
+  /*
+     Extra controle op het Type.
+  */
+
+  const type =
+    getInfoboxValue(
+      $,
+      "Type"
+    );
+
+
+  if (
+    type &&
+    type.toLowerCase() !==
+      "character"
+  ) {
+
+    return null;
+
+  }
+
+
+  const name =
+    cleanText(
+      parsed.title ||
+      title
+    );
+
+
+  const movie =
+    getMovie($);
+
+
+  const image =
+    await getImage(title);
+
+
+  return {
+
+    id:
+      createId(name),
+
+    name,
+
+    movie,
+
+    collection,
+
+    image
+
+  };
+
+}
+
+
+/* =====================================================
+   BESTAANDE SUPABASE RECORDS
+===================================================== */
+
+async function getExisting() {
+
+  const {
+    data,
+    error
+  } = await supabase
+
+    .from(
+      "characters_master"
+    )
+
+    .select(
+      "id,name,movie,collection,image"
+    );
+
+
+  if (error) {
+
+    throw new Error(
+      `Supabase ophalen mislukt: ${error.message}`
+    );
+
+  }
+
+
+  return data || [];
+
+}
+
+
+/* =====================================================
+   CONTROLEREN OF RECORD GEWIJZIGD IS
+===================================================== */
+
+function changed(
+  oldRow,
+  newRow
 ) {
 
-    const {
-        error
-    } = await supabase
+  return [
+    "name",
+    "movie",
+    "collection",
+    "image"
+  ].some(
 
-        .from(
-            "characters_master"
-        )
+    (field) =>
+      (oldRow[field] || "") !==
+      (newRow[field] || "")
 
-        .upsert(
-
-            character,
-
-            {
-                onConflict: "id"
-            }
-
-        );
-
-
-    if (error) {
-
-        throw new Error(
-            `Supabase fout bij ${character.name}: ${error.message}`
-        );
-
-    }
+  );
 
 }
 
 
-/*
-=====================================================
-VERGELIJKEN
-=====================================================
-*/
+/* =====================================================
+   OPSLAAN
+===================================================== */
 
-function characterChanged(
-    oldCharacter,
-    newCharacter
+async function upsertCharacter(
+  character
 ) {
 
-    return (
+  const {
+    error
+  } = await supabase
 
-        oldCharacter.name
-            !== newCharacter.name
+    .from(
+      "characters_master"
+    )
 
-        ||
+    .upsert(
 
-        oldCharacter.movie
-            !== newCharacter.movie
+      character,
 
-        ||
-
-        oldCharacter.collection
-            !== newCharacter.collection
-
-        ||
-
-        oldCharacter.image
-            !== newCharacter.image
+      {
+        onConflict: "id"
+      }
 
     );
+
+
+  if (error) {
+
+    throw new Error(
+      `Opslaan mislukt: ${error.message}`
+    );
+
+  }
 
 }
 
 
-/*
-=====================================================
-HOOFDFUNCTIE
-=====================================================
-*/
+/* =====================================================
+   HOOFDFUNCTIE
+===================================================== */
 
-async function syncCharacters() {
+async function main() {
 
-    console.log(
-        "========================================"
+  console.log(
+    "========================================"
+  );
+
+  console.log(
+    "DDV Character Database Sync"
+  );
+
+  console.log(
+    "========================================"
+  );
+
+
+  /*
+     Wiki-karakters ophalen
+  */
+
+  const titles =
+    await getCharacterTitles();
+
+
+  console.log(
+    `Wiki: ${titles.length} pagina's in Category:Characters.`
+  );
+
+
+  /*
+     Bestaande database ophalen
+  */
+
+  const existing =
+    await getExisting();
+
+
+  const existingMap =
+    new Map(
+      existing.map(
+        (row) => [
+          row.id,
+          row
+        ]
+      )
     );
 
-    console.log(
-        "Dreamlight Valley Character Sync"
-    );
 
-    console.log(
-        "========================================"
-    );
-
-
-    /*
-        1. Wiki-pagina's ophalen
-    */
-
-    const titles =
-        await getCharacterPageTitles();
+  let added = 0;
+  let updated = 0;
+  let unchanged = 0;
+  let skipped = 0;
+  let errors = 0;
 
 
-    console.log(
-        `Wiki: ${titles.length} pagina's gevonden.`
-    );
+  /*
+     Iedere karakterpagina controleren
+  */
 
+  for (
+    const title
+    of titles
+  ) {
 
-    /*
-        2. Bestaande database ophalen
-    */
+    try {
 
-    const existing =
-        await getExistingCharacters();
-
-
-    const existingMap =
-        new Map(
-            existing.map(
-                character => [
-                    character.id,
-                    character
-                ]
-            )
+      const character =
+        await parseCharacter(
+          title
         );
 
 
-    let added = 0;
+      /*
+         Geen geldig tracker-karakter
+      */
 
-    let updated = 0;
+      if (!character) {
 
-    let unchanged = 0;
+        skipped++;
 
-    let errors = 0;
-
-
-    /*
-        3. Iedere pagina verwerken
-    */
-
-    for (
-        const title
-        of titles
-    ) {
-
-        try {
-
-            console.log(
-                `Controleren: ${title}`
-            );
-
-
-            const character =
-                await parseCharacter(
-                    title
-                );
-
-
-            /*
-                Geen Character?
-                Dan overslaan.
-            */
-
-            if (!character) {
-
-                console.log(
-                    `  → overgeslagen`
-                );
-
-                continue;
-
-            }
-
-
-            const oldCharacter =
-                existingMap.get(
-                    character.id
-                );
-
-
-            /*
-                Nieuw karakter
-            */
-
-            if (!oldCharacter) {
-
-                await saveCharacter(
-                    character
-                );
-
-
-                added++;
-
-
-                console.log(
-                    `  → NIEUW: ${character.name}`
-                );
-
-            }
-
-
-            /*
-                Bestaand karakter gewijzigd
-            */
-
-            else if (
-                characterChanged(
-                    oldCharacter,
-                    character
-                )
-            ) {
-
-                await saveCharacter(
-                    character
-                );
-
-
-                updated++;
-
-
-                console.log(
-                    `  → GEWIJZIGD: ${character.name}`
-                );
-
-            }
-
-
-            /*
-                Geen wijzigingen
-            */
-
-            else {
-
-                unchanged++;
-
-            }
-
-
-            /*
-                Kleine pauze om de wiki
-                niet onnodig zwaar te belasten.
-            */
-
-            await sleep(250);
-
-        }
-
-        catch (error) {
-
-            errors++;
-
-
-            console.error(
-                `  → FOUT bij ${title}:`
-            );
-
-
-            console.error(
-                error.message
-            );
-
-        }
-
-    }
-
-
-    /*
-        4. Resultaat
-    */
-
-    console.log("");
-    console.log(
-        "========================================"
-    );
-
-    console.log(
-        "Synchronisatie voltooid"
-    );
-
-    console.log(
-        "========================================"
-    );
-
-    console.log(
-        `Gevonden:       ${titles.length}`
-    );
-
-    console.log(
-        `Nieuw:          ${added}`
-    );
-
-    console.log(
-        `Gewijzigd:      ${updated}`
-    );
-
-    console.log(
-        `Ongewijzigd:    ${unchanged}`
-    );
-
-    console.log(
-        `Fouten:         ${errors}`
-    );
-
-    console.log(
-        "========================================"
-    );
-
-
-    /*
-        Als er fouten waren, laten we de
-        GitHub Action falen.
-
-        Bestaande records worden hierdoor
-        NIET verwijderd.
-    */
-
-    if (errors > 0) {
-
-        throw new Error(
-            `${errors} karakterpagina('s) konden niet worden verwerkt.`
+        console.log(
+          `SKIP  ${title}`
         );
 
+        continue;
+
+      }
+
+
+      const oldRow =
+        existingMap.get(
+          character.id
+        );
+
+
+      /*
+         Nieuw karakter
+      */
+
+      if (!oldRow) {
+
+        await upsertCharacter(
+          character
+        );
+
+        added++;
+
+        console.log(
+          `NEW   ${character.name} (${character.collection})`
+        );
+
+      }
+
+
+      /*
+         Bestaand karakter gewijzigd
+      */
+
+      else if (
+        changed(
+          oldRow,
+          character
+        )
+      ) {
+
+        await upsertCharacter(
+          character
+        );
+
+        updated++;
+
+        console.log(
+          `UPDATE ${character.name} (${character.collection})`
+        );
+
+      }
+
+
+      /*
+         Geen wijzigingen
+      */
+
+      else {
+
+        unchanged++;
+
+      }
+
+
+      /*
+         Kleine pauze tussen
+         wiki-aanvragen
+      */
+
+      await sleep(200);
+
     }
+
+    catch (error) {
+
+      errors++;
+
+      console.error(
+        `ERROR ${title}: ${error.message}`
+      );
+
+    }
+
+  }
+
+
+  /*
+     Resultaat
+  */
+
+  console.log("");
+
+  console.log(
+    "========================================"
+  );
+
+  console.log(
+    "Synchronisatie voltooid"
+  );
+
+  console.log(
+    "========================================"
+  );
+
+  console.log(
+    `Wiki characters: ${titles.length}`
+  );
+
+  console.log(
+    `Nieuw:           ${added}`
+  );
+
+  console.log(
+    `Gewijzigd:       ${updated}`
+  );
+
+  console.log(
+    `Ongewijzigd:     ${unchanged}`
+  );
+
+  console.log(
+    `Overgeslagen:    ${skipped}`
+  );
+
+  console.log(
+    `Fouten:          ${errors}`
+  );
+
+  console.log(
+    "========================================"
+  );
+
+
+  /*
+     Bij fouten laten we GitHub
+     de workflow als mislukt markeren.
+  */
+
+  if (errors > 0) {
+
+    throw new Error(
+      `${errors} pagina('s) konden niet worden verwerkt.`
+    );
+
+  }
 
 }
 
 
-/*
-=====================================================
-START
-=====================================================
-*/
+/* =====================================================
+   START
+===================================================== */
 
-syncCharacters()
+main().catch(
+  (error) => {
 
-    .catch(
-        error => {
+    console.error("");
 
-            console.error("");
-            console.error(
-                "SYNC MISLUKT"
-            );
-            console.error(
-                error.message
-            );
-
-            process.exit(1);
-
-        }
+    console.error(
+      "SYNC MISLUKT"
     );
+
+    console.error(
+      error.message
+    );
+
+    process.exit(1);
+
+  }
+);
