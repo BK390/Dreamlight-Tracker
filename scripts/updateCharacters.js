@@ -2,38 +2,80 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { createClient } from "@supabase/supabase-js";
 
-const WIKI_API = "https://dreamlightvalleywiki.com/api.php";
-const USER_AGENT = "DDV-Tracker-Character-Sync/1.0";
+const SOURCE_URL =
+  "https://www.mydreamlightvalley.com/en/character/";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36";
+
+const SUPABASE_URL =
+  process.env.SUPABASE_URL;
+
+const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_KEY;
+
+
+/* =====================================================
+   CONTROLE
+===================================================== */
 
 if (!SUPABASE_URL) {
-  throw new Error("SUPABASE_URL ontbreekt.");
+  throw new Error(
+    "SUPABASE_URL ontbreekt."
+  );
 }
 
 if (!SUPABASE_SERVICE_KEY) {
-  throw new Error("SUPABASE_SERVICE_KEY ontbreekt.");
+  throw new Error(
+    "SUPABASE_SERVICE_KEY ontbreekt."
+  );
 }
 
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_KEY
-);
 
-const sleep = (ms) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+const supabase =
+  createClient(
+    SUPABASE_URL,
+    SUPABASE_SERVICE_KEY
+  );
+
+
+/* =====================================================
+   WORLD → COLLECTION
+===================================================== */
+
+const WORLD_NAMES = {
+
+  world_xbas:
+    "Dreamlight Valley",
+
+  world_xtny:
+    "Eternity Isle",
+
+  world_xsbv:
+    "Storybook Vale",
+
+  world_xwis:
+    "Wishblossom Mountains",
+
+  world_xhny:
+    "Honeyglow Woods"
+
+};
 
 
 /* =====================================================
    TEKST OPSCHONEN
 ===================================================== */
 
-function cleanText(value = "") {
+function cleanText(
+  value = ""
+) {
+
   return value
     .replace(/\s+/g, " ")
     .replace(/\u00a0/g, " ")
     .trim();
+
 }
 
 
@@ -41,385 +83,83 @@ function cleanText(value = "") {
    ID MAKEN
 ===================================================== */
 
-function createId(name) {
+function createId(
+  name
+) {
+
   return name
+
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
+
     .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[’']/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
+    .replace(
+      /&/g,
+      "and"
+    )
 
-/* =====================================================
-   WIKI API
-===================================================== */
+    .replace(
+      /['’]/g,
+      ""
+    )
 
-async function wikiGet(params) {
-  try {
-    const response = await axios.get(WIKI_API, {
-      params: {
-        ...params,
-        format: "json",
-        formatversion: 2
-      },
+    .replace(
+      /[^a-z0-9]+/g,
+      "-"
+    )
 
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; DDV-Tracker/1.0)",
-        "Accept": "application/json",
-        "Accept-Language": "en-US,en;q=0.9"
-      },
-
-      timeout: 30000,
-
-      validateStatus: () => true
-    });
-
-    if (response.status !== 200) {
-      console.error("");
-      console.error("========================================");
-      console.error("WIKI REQUEST FOUT");
-      console.error("========================================");
-      console.error(`HTTP status: ${response.status}`);
-      console.error(`URL: ${response.config.url}`);
-      console.error(`Request: ${JSON.stringify(params)}`);
-      console.error("Response:");
-      console.error(
-        typeof response.data === "string"
-          ? response.data.substring(0, 1000)
-          : JSON.stringify(response.data).substring(0, 1000)
-      );
-      console.error("========================================");
-
-      throw new Error(
-        `Dreamlight Valley Wiki gaf HTTP ${response.status}`
-      );
-    }
-
-    if (response.data?.error) {
-      throw new Error(
-        response.data.error.info ||
-        "MediaWiki API fout"
-      );
-    }
-
-    return response.data;
-
-  } catch (error) {
-
-    if (
-      error.message &&
-      error.message.startsWith(
-        "Dreamlight Valley Wiki gaf HTTP"
-      )
-    ) {
-      throw error;
-    }
-
-    throw new Error(
-      `Wiki aanvraag mislukt: ${error.message}`
-    );
-  }
-}
-
-
-/* =====================================================
-   ALLE PAGINA'S UIT CATEGORY:CHARACTERS
-===================================================== */
-
-async function getCharacterTitles() {
-
-  const titles = [];
-
-  let cmcontinue;
-
-  do {
-
-    const params = {
-      action: "query",
-      list: "categorymembers",
-      cmtitle: "Category:Characters",
-      cmnamespace: 0,
-      cmtype: "page",
-      cmlimit: "max"
-    };
-
-    if (cmcontinue) {
-      params.cmcontinue = cmcontinue;
-    }
-
-    const data = await wikiGet(params);
-
-    const members =
-      data.query?.categorymembers || [];
-
-    for (const member of members) {
-
-      if (
-        member.ns === 0 &&
-        member.title
-      ) {
-
-        titles.push(member.title);
-
-      }
-
-    }
-
-    cmcontinue =
-      data.continue?.cmcontinue;
-
-  } while (cmcontinue);
-
-
-  return [
-    ...new Set(titles)
-  ];
+    .replace(
+      /^-+|-+$/g,
+      "");
 
 }
 
 
 /* =====================================================
-   INDIVIDUELE WIKI PAGINA
+   AFBEELDING URL NORMALISEREN
 ===================================================== */
 
-async function getPage(title) {
+function normalizeImageUrl(
+  src
+) {
 
-  const data = await wikiGet({
-
-    action: "parse",
-
-    page: title,
-
-    prop: "text|categories",
-
-    redirects: 1
-
-  });
-
-
-  if (!data.parse) {
-
-    throw new Error(
-      `Pagina niet gevonden: ${title}`
-    );
-
-  }
-
-
-  return data.parse;
-
-}
-
-
-/* =====================================================
-   INFOBOX RIJ VINDEN
-===================================================== */
-
-function getInfoboxRow($, label) {
-
-  let result = null;
-
-
-  $("table").each((_, table) => {
-
-    if (result) {
-      return;
-    }
-
-
-    $(table).find("tr").each((_, row) => {
-
-      if (result) {
-        return;
-      }
-
-
-      const cells =
-        $(row).find("th, td");
-
-
-      if (cells.length < 2) {
-        return;
-      }
-
-
-      const key =
-        cleanText(
-          $(cells[0]).text()
-        ).replace(/:$/, "");
-
-
-      if (
-        key.toLowerCase() ===
-        label.toLowerCase()
-      ) {
-
-        result =
-          cells.eq(1);
-
-      }
-
-    });
-
-  });
-
-
-  return result;
-
-}
-
-
-/* =====================================================
-   INFOBOX WAARDE
-===================================================== */
-
-function getInfoboxValue($, label) {
-
-  const cell =
-    getInfoboxRow(
-      $,
-      label
-    );
-
-
-  if (!cell) {
+  if (!src) {
     return "";
   }
 
 
-  return cleanText(
-    cell.text()
-  );
-
-}
-
-
-/* =====================================================
-   FILM / UNIVERSUM
-===================================================== */
-
-function getMovie($) {
-
-  const cell =
-    getInfoboxRow(
-      $,
-      "From"
-    );
-
-
-  if (!cell) {
-    return "";
-  }
-
-
-  /*
-     De wiki gebruikt hier meestal
-     een link naar het betreffende
-     Disney-universum.
-  */
-
-  const link =
-    cell.find("a").first();
-
-
-  if (link.length) {
-
-    const text =
-      cleanText(
-        link.text()
-      );
-
-
-    if (text) {
-      return text;
-    }
-
-
-    const title =
-      cleanText(
-        link.attr("title") || ""
-      );
-
-
-    if (title) {
-
-      return title
-        .replace(
-          /^Image:\s*/i,
-          ""
-        )
-        .replace(
-          /\.png$/i,
-          ""
-        );
-
-    }
-
-  }
-
-
-  let value =
-    cleanText(
-      cell.text()
-    );
-
-
-  value =
-    value.replace(
-      /^Image\s*/i,
-      ""
-    );
-
-
-  value =
-    value.replace(
-      /\.png$/i,
-      ""
-    );
-
-
-  return value;
-
-}
-
-
-/* =====================================================
-   COLLECTION
-===================================================== */
-
-function getCollection(parsed) {
-
-  const categories =
-    parsed.categories || [];
-
-
-  for (
-    const category
-    of categories
+  if (
+    src.startsWith("//")
   ) {
 
-    const name =
-      cleanText(
-        category.title ||
-        category["*"] ||
-        ""
-      );
+    return "https:" + src;
+
+  }
 
 
-    const match =
-      name.match(
-        /^(.+?) Characters Collection$/i
-      );
+  if (
+    src.startsWith("/")
+  ) {
+
+    return (
+      "https://www.mydreamlightvalley.com"
+      + src
+    );
+
+  }
 
 
-    if (match) {
+  if (
+    src.startsWith("http://") ||
+    src.startsWith("https://")
+  ) {
 
-      return match[1].trim();
-
-    }
+    return src;
 
   }
 
@@ -430,127 +170,128 @@ function getCollection(parsed) {
 
 
 /* =====================================================
-   AFBEELDING
+   CHARACTER TABEL VINDEN
 ===================================================== */
 
-async function getImage(title) {
+function findCharacterTable(
+  $
+) {
 
-  const data =
-    await wikiGet({
+  let bestTable = null;
 
-      action: "query",
-
-      titles: title,
-
-      prop: "pageimages",
-
-      piprop: "original"
-
-    });
+  let bestScore = 0;
 
 
-  const pages =
-    data.query?.pages || [];
+  $("table").each(
+    (_, table) => {
+
+      const text =
+        cleanText(
+          $(table).text()
+        );
 
 
-  const page =
-    pages[0];
+      let score = 0;
 
 
-  return (
-    page?.original?.source ||
-    ""
+      if (
+        text.includes("Name")
+      ) {
+        score += 2;
+      }
+
+
+      if (
+        text.includes("Universe")
+      ) {
+        score += 2;
+      }
+
+
+      if (
+        text.includes("World")
+      ) {
+        score += 2;
+      }
+
+
+      if (
+        text.includes("His/Her Level")
+      ) {
+        score += 1;
+      }
+
+
+      if (
+        score > bestScore
+      ) {
+
+        bestScore =
+          score;
+
+        bestTable =
+          table;
+
+      }
+
+    }
   );
+
+
+  return bestTable;
 
 }
 
 
 /* =====================================================
-   KARAKTER VERWERKEN
+   HEADER INDEXEN BEPALEN
 ===================================================== */
 
-async function parseCharacter(title) {
+function getHeaderIndexes(
+  $,
+  table
+) {
 
-  const parsed =
-    await getPage(title);
+  const headers = [];
 
+  $(table)
+    .find("tr")
+    .first()
+    .find("th, td")
+    .each(
+      (_, cell) => {
 
-  const html =
-    parsed.text || "";
+        headers.push(
+          cleanText(
+            $(cell).text()
+          ).toLowerCase()
+        );
 
-
-  const $ =
-    cheerio.load(html);
-
-
-  /*
-     Alleen pagina's die daadwerkelijk
-     bij een Characters Collection horen.
-
-     Hiermee wordt bijvoorbeeld
-     The Lorekeeper automatisch uitgesloten.
-  */
-
-  const collection =
-    getCollection(parsed);
-
-
-  if (!collection) {
-
-    return null;
-
-  }
-
-
-  /*
-     Extra controle op het Type.
-  */
-
-  const type =
-    getInfoboxValue(
-      $,
-      "Type"
+      }
     );
-
-
-  if (
-    type &&
-    type.toLowerCase() !==
-      "character"
-  ) {
-
-    return null;
-
-  }
-
-
-  const name =
-    cleanText(
-      parsed.title ||
-      title
-    );
-
-
-  const movie =
-    getMovie($);
-
-
-  const image =
-    await getImage(title);
 
 
   return {
 
-    id:
-      createId(name),
+    world:
+      headers.findIndex(
+        h => h === "world"
+      ),
 
-    name,
+    name:
+      headers.findIndex(
+        h => h === "name"
+      ),
 
-    movie,
+    universe:
+      headers.findIndex(
+        h => h === "universe"
+      ),
 
-    collection,
-
-    image
+    image:
+      headers.findIndex(
+        h => h === "image"
+      )
 
   };
 
@@ -558,10 +299,346 @@ async function parseCharacter(title) {
 
 
 /* =====================================================
-   BESTAANDE SUPABASE RECORDS
+   IMAGE UIT RIJ HALEN
 ===================================================== */
 
-async function getExisting() {
+function getImageFromRow(
+  $,
+  row,
+  imageIndex
+) {
+
+  let image = "";
+
+
+  const cells =
+    $(row).find(
+      "td, th"
+    );
+
+
+  /*
+     Eerst de Image-kolom proberen.
+  */
+
+  if (
+    imageIndex >= 0 &&
+    cells.eq(imageIndex).length
+  ) {
+
+    const img =
+      cells
+        .eq(imageIndex)
+        .find("img")
+        .first();
+
+
+    if (img.length) {
+
+      image =
+        img.attr("src") ||
+        img.attr("data-src") ||
+        img.attr("data-lazy-src") ||
+        "";
+
+    }
+
+  }
+
+
+  /*
+     Fallback: zoek iedere afbeelding
+     in de rij.
+  */
+
+  if (!image) {
+
+    cells
+      .find("img")
+      .each(
+        (_, img) => {
+
+          if (image) {
+            return;
+          }
+
+
+          image =
+            $(img).attr("src") ||
+            $(img).attr("data-src") ||
+            $(img).attr("data-lazy-src") ||
+            "";
+
+        }
+      );
+
+  }
+
+
+  return normalizeImageUrl(
+    image
+  );
+
+}
+
+
+/* =====================================================
+   KARAKTERS UITLEZEN
+===================================================== */
+
+async function getCharactersFromWebsite() {
+
+  console.log(
+    "Bron ophalen:"
+  );
+
+  console.log(
+    SOURCE_URL
+  );
+
+
+  const response =
+    await axios.get(
+      SOURCE_URL,
+      {
+
+        headers: {
+
+          "User-Agent":
+            USER_AGENT,
+
+          "Accept":
+            "text/html,application/xhtml+xml",
+
+          "Accept-Language":
+            "en-US,en;q=0.9"
+
+        },
+
+        timeout: 30000
+
+      }
+    );
+
+
+  if (
+    response.status !== 200
+  ) {
+
+    throw new Error(
+      `MyDreamlightValley gaf HTTP ${response.status}`
+    );
+
+  }
+
+
+  const $
+    = cheerio.load(
+      response.data
+    );
+
+
+  const table =
+    findCharacterTable(
+      $
+    );
+
+
+  if (!table) {
+
+    throw new Error(
+      "De character-tabel kon niet worden gevonden."
+    );
+
+  }
+
+
+  const indexes =
+    getHeaderIndexes(
+      $,
+      table
+    );
+
+
+  console.log(
+    "Kolommen gevonden:"
+  );
+
+  console.log(
+    indexes
+  );
+
+
+  if (
+    indexes.name === -1 ||
+    indexes.universe === -1 ||
+    indexes.world === -1
+  ) {
+
+    throw new Error(
+      "De verwachte kolommen Name, Universe en World zijn niet gevonden."
+    );
+
+  }
+
+
+  const characters = [];
+
+
+  $(table)
+    .find("tr")
+    .slice(1)
+    .each(
+      (_, row) => {
+
+        const cells =
+          $(row).find(
+            "td, th"
+          );
+
+
+        if (
+          cells.length === 0
+        ) {
+
+          return;
+
+        }
+
+
+        const name =
+          cleanText(
+            cells
+              .eq(indexes.name)
+              .text()
+          );
+
+
+        const universe =
+          cleanText(
+            cells
+              .eq(indexes.universe)
+              .text()
+          );
+
+
+        const world =
+          cleanText(
+            cells
+              .eq(indexes.world)
+              .text()
+          );
+
+
+        /*
+           Geen naam = geen character.
+        */
+
+        if (!name) {
+
+          return;
+
+        }
+
+
+        /*
+           Sommige tabelrijen kunnen
+           ondersteunende informatie bevatten.
+        */
+
+        if (
+          name === "Name" ||
+          name === "Image"
+        ) {
+
+          return;
+
+        }
+
+
+        /*
+           World is bijvoorbeeld:
+           world_xbas
+           world_xtny
+           world_xsbv
+           world_xwis
+           world_xhny
+        */
+
+        const collection =
+          WORLD_NAMES[world] ||
+          world;
+
+
+        const image =
+          getImageFromRow(
+            $,
+            row,
+            indexes.image
+          );
+
+
+        characters.push({
+
+          id:
+            createId(name),
+
+          name,
+
+          movie:
+            universe,
+
+          collection,
+
+          image
+
+        });
+
+      }
+    );
+
+
+  /*
+     Dubbele characters verwijderen.
+  */
+
+  const unique =
+    new Map();
+
+
+  for (
+    const character
+    of characters
+  ) {
+
+    if (
+      !unique.has(
+        character.id
+      )
+    ) {
+
+      unique.set(
+        character.id,
+        character
+      );
+
+    }
+
+  }
+
+
+  return [
+    ...unique.values()
+  ];
+
+}
+
+
+/* =====================================================
+   BESTAANDE DATABASE OPHALEN
+===================================================== */
+
+async function getExistingCharacters() {
 
   const {
     data,
@@ -592,24 +669,33 @@ async function getExisting() {
 
 
 /* =====================================================
-   CONTROLEREN OF RECORD GEWIJZIGD IS
+   RECORD VERANDERD?
 ===================================================== */
 
-function changed(
-  oldRow,
-  newRow
+function characterChanged(
+  oldCharacter,
+  newCharacter
 ) {
 
-  return [
-    "name",
-    "movie",
-    "collection",
-    "image"
-  ].some(
+  return (
 
-    (field) =>
-      (oldRow[field] || "") !==
-      (newRow[field] || "")
+    (oldCharacter.name || "") !==
+      (newCharacter.name || "")
+
+    ||
+
+    (oldCharacter.movie || "") !==
+      (newCharacter.movie || "")
+
+    ||
+
+    (oldCharacter.collection || "") !==
+      (newCharacter.collection || "")
+
+    ||
+
+    (oldCharacter.image || "") !==
+      (newCharacter.image || "")
 
   );
 
@@ -617,10 +703,10 @@ function changed(
 
 
 /* =====================================================
-   OPSLAAN
+   CHARACTER OPSLAAN
 ===================================================== */
 
-async function upsertCharacter(
+async function saveCharacter(
   character
 ) {
 
@@ -637,7 +723,8 @@ async function upsertCharacter(
       character,
 
       {
-        onConflict: "id"
+        onConflict:
+          "id"
       }
 
     );
@@ -646,7 +733,7 @@ async function upsertCharacter(
   if (error) {
 
     throw new Error(
-      `Opslaan mislukt: ${error.message}`
+      `Supabase opslaan mislukt voor ${character.name}: ${error.message}`
     );
 
   }
@@ -660,176 +747,154 @@ async function upsertCharacter(
 
 async function main() {
 
+  console.log("");
   console.log(
     "========================================"
   );
 
   console.log(
-    "DDV Character Database Sync"
+    "DDV CHARACTER DATABASE SYNC"
   );
 
   console.log(
     "========================================"
   );
 
+  console.log("");
+
 
   /*
-     Wiki-karakters ophalen
+     1. Website uitlezen
   */
 
-  const titles =
-    await getCharacterTitles();
+  const characters =
+    await getCharactersFromWebsite();
 
+
+  console.log("");
 
   console.log(
-    `Wiki: ${titles.length} pagina's in Category:Characters.`
+    `Characters gevonden: ${characters.length}`
   );
 
 
-  /*
-     Bestaande database ophalen
-  */
-
-  const existing =
-    await getExisting();
-
-
-  const existingMap =
-    new Map(
-      existing.map(
-        (row) => [
-          row.id,
-          row
-        ]
-      )
-    );
-
-
-  let added = 0;
-  let updated = 0;
-  let unchanged = 0;
-  let skipped = 0;
-  let errors = 0;
-
-
-  /*
-     Iedere karakterpagina controleren
-  */
-
-  for (
-    const title
-    of titles
+  if (
+    characters.length < 50
   ) {
 
-    try {
-
-      const character =
-        await parseCharacter(
-          title
-        );
-
-
-      /*
-         Geen geldig tracker-karakter
-      */
-
-      if (!character) {
-
-        skipped++;
-
-        console.log(
-          `SKIP  ${title}`
-        );
-
-        continue;
-
-      }
-
-
-      const oldRow =
-        existingMap.get(
-          character.id
-        );
-
-
-      /*
-         Nieuw karakter
-      */
-
-      if (!oldRow) {
-
-        await upsertCharacter(
-          character
-        );
-
-        added++;
-
-        console.log(
-          `NEW   ${character.name} (${character.collection})`
-        );
-
-      }
-
-
-      /*
-         Bestaand karakter gewijzigd
-      */
-
-      else if (
-        changed(
-          oldRow,
-          character
-        )
-      ) {
-
-        await upsertCharacter(
-          character
-        );
-
-        updated++;
-
-        console.log(
-          `UPDATE ${character.name} (${character.collection})`
-        );
-
-      }
-
-
-      /*
-         Geen wijzigingen
-      */
-
-      else {
-
-        unchanged++;
-
-      }
-
-
-      /*
-         Kleine pauze tussen
-         wiki-aanvragen
-      */
-
-      await sleep(200);
-
-    }
-
-    catch (error) {
-
-      errors++;
-
-      console.error(
-        `ERROR ${title}: ${error.message}`
-      );
-
-    }
+    throw new Error(
+      `Slechts ${characters.length} characters gevonden. De synchronisatie wordt afgebroken om te voorkomen dat een foutieve bron de database overschrijft.`
+    );
 
   }
 
 
   /*
-     Resultaat
+     2. Bestaande database
+  */
+
+  const existing =
+    await getExistingCharacters();
+
+
+  const existingMap =
+    new Map(
+
+      existing.map(
+        character => [
+          character.id,
+          character
+        ]
+      )
+
+    );
+
+
+  console.log(
+    `Bestaande records: ${existing.length}`
+  );
+
+
+  let added = 0;
+
+  let updated = 0;
+
+  let unchanged = 0;
+
+
+  /*
+     3. Synchroniseren
+  */
+
+  for (
+    const character
+    of characters
+  ) {
+
+    const oldCharacter =
+      existingMap.get(
+        character.id
+      );
+
+
+    /*
+       Nieuw
+    */
+
+    if (!oldCharacter) {
+
+      await saveCharacter(
+        character
+      );
+
+      added++;
+
+      console.log(
+        `NEW     ${character.name} | ${character.collection} | ${character.movie}`
+      );
+
+      continue;
+
+    }
+
+
+    /*
+       Gewijzigd
+    */
+
+    if (
+      characterChanged(
+        oldCharacter,
+        character
+      )
+    ) {
+
+      await saveCharacter(
+        character
+      );
+
+      updated++;
+
+      console.log(
+        `UPDATE  ${character.name}`
+      );
+
+      continue;
+
+    }
+
+
+    /*
+       Geen wijziging
+    */
+
+    unchanged++;
+
+  }
+
+
+  /*
+     4. Resultaat
   */
 
   console.log("");
@@ -839,7 +904,7 @@ async function main() {
   );
 
   console.log(
-    "Synchronisatie voltooid"
+    "SYNCHRONISATIE VOLTOOID"
   );
 
   console.log(
@@ -847,7 +912,7 @@ async function main() {
   );
 
   console.log(
-    `Wiki characters: ${titles.length}`
+    `Bron characters: ${characters.length}`
   );
 
   console.log(
@@ -863,30 +928,8 @@ async function main() {
   );
 
   console.log(
-    `Overgeslagen:    ${skipped}`
-  );
-
-  console.log(
-    `Fouten:          ${errors}`
-  );
-
-  console.log(
     "========================================"
   );
-
-
-  /*
-     Bij fouten laten we GitHub
-     de workflow als mislukt markeren.
-  */
-
-  if (errors > 0) {
-
-    throw new Error(
-      `${errors} pagina('s) konden niet worden verwerkt.`
-    );
-
-  }
 
 }
 
@@ -895,20 +938,22 @@ async function main() {
    START
 ===================================================== */
 
-main().catch(
-  (error) => {
+main()
 
-    console.error("");
+  .catch(
+    error => {
 
-    console.error(
-      "SYNC MISLUKT"
-    );
+      console.error("");
 
-    console.error(
-      error.message
-    );
+      console.error(
+        "SYNC MISLUKT"
+      );
 
-    process.exit(1);
+      console.error(
+        error.message
+      );
 
-  }
-);
+      process.exit(1);
+
+    }
+  );
