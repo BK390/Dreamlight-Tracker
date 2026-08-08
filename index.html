@@ -901,98 +901,48 @@ const supabaseClient =
    KARAKTERDATABASE
 ===================================================== */
 
-const characterDatabase = [
+let characterDatabase = [];
 
-{ id:"aladdin", name:"Aladdin", movie:"Aladdin", collection:"Dreamlight Valley" },
-{ id:"jasmine", name:"Jasmine", movie:"Aladdin", collection:"Dreamlight Valley" },
-{ id:"alice", name:"Alice", movie:"Alice in Wonderland", collection:"Dreamlight Valley" },
-{ id:"cheshire-cat", name:"Cheshire Cat", movie:"Alice in Wonderland", collection:"Dreamlight Valley" },
+/* =====================================================
+   MASTERDATABASE UIT SUPABASE LADEN
+===================================================== */
 
-{ id:"anna", name:"Anna", movie:"Frozen", collection:"Dreamlight Valley" },
-{ id:"elsa", name:"Elsa", movie:"Frozen", collection:"Dreamlight Valley" },
-{ id:"kristoff", name:"Kristoff", movie:"Frozen", collection:"Dreamlight Valley" },
-{ id:"olaf", name:"Olaf", movie:"Frozen", collection:"Dreamlight Valley" },
+async function loadCharacterDatabase() {
 
-{ id:"belle", name:"Belle", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
-{ id:"the-beast", name:"The Beast", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
-{ id:"cogsworth", name:"Cogsworth", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
-{ id:"lumiere", name:"Lumiere", movie:"Beauty and the Beast", collection:"Dreamlight Valley" },
+    const { data, error } =
+        await supabaseClient
+            .from("characters_master")
+            .select("id,name,movie,collection,image")
+            .order("name", {
+                ascending: true
+            });
 
-{ id:"cinderella", name:"Cinderella", movie:"Cinderella", collection:"Dreamlight Valley" },
-{ id:"the-fairy-godmother", name:"The Fairy Godmother", movie:"Cinderella", collection:"Dreamlight Valley" },
+    if (error) {
+        console.error(error);
 
-{ id:"mirabel", name:"Mirabel", movie:"Encanto", collection:"Dreamlight Valley" },
+        document.getElementById("app").innerHTML = `
+            <div class="error-message">
+                <strong>De karakterdatabase kon niet worden geladen.</strong>
+                <br><br>
+                Controleer of de tabel <strong>characters_master</strong> bestaat en toegankelijk is.
+                <br><br>
+                Technische fout:
+                <br>
+                ${error.message}
+            </div>
+        `;
 
-{ id:"maui", name:"Maui", movie:"Moana", collection:"Dreamlight Valley" },
-{ id:"moana", name:"Moana", movie:"Moana", collection:"Dreamlight Valley" },
+        return false;
+    }
 
-{ id:"mickey-mouse", name:"Mickey Mouse", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-{ id:"minnie-mouse", name:"Minnie Mouse", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-{ id:"donald-duck", name:"Donald Duck", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-{ id:"daisy", name:"Daisy", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-{ id:"goofy", name:"Goofy", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
-{ id:"scrooge-mcduck", name:"Scrooge McDuck", movie:"Mickey & Friends", collection:"Dreamlight Valley" },
+    characterDatabase = data || [];
 
-{ id:"ariel", name:"Ariel", movie:"The Little Mermaid", collection:"Dreamlight Valley" },
-{ id:"ursula", name:"Ursula", movie:"The Little Mermaid", collection:"Dreamlight Valley" },
-{ id:"prince-eric", name:"Prince Eric", movie:"The Little Mermaid", collection:"Dreamlight Valley" },
+    console.log(
+        `Karakterdatabase geladen: ${characterDatabase.length} characters`
+    );
 
-{ id:"nala", name:"Nala", movie:"The Lion King", collection:"Dreamlight Valley" },
-{ id:"simba", name:"Simba", movie:"The Lion King", collection:"Dreamlight Valley" },
-{ id:"scar", name:"Scar", movie:"The Lion King", collection:"Dreamlight Valley" },
-
-{ id:"buzz-lightyear", name:"Buzz Lightyear", movie:"Toy Story", collection:"Dreamlight Valley" },
-{ id:"woody", name:"Woody", movie:"Toy Story", collection:"Dreamlight Valley" },
-
-{ id:"stitch", name:"Stitch", movie:"Lilo & Stitch", collection:"Dreamlight Valley" },
-
-{ id:"wall-e", name:"WALL-E", movie:"WALL-E", collection:"Dreamlight Valley" },
-
-{ id:"remy", name:"Remy", movie:"Ratatouille", collection:"Dreamlight Valley" },
-
-{ id:"mother-gothel", name:"Mother Gothel", movie:"Tangled", collection:"Dreamlight Valley" },
-
-{ id:"vanellope", name:"Vanellope", movie:"Wreck-It Ralph", collection:"Dreamlight Valley" },
-
-{ id:"merlin", name:"Merlin", movie:"The Sword in the Stone", collection:"Dreamlight Valley" },
-
-{ id:"jack-skellington", name:"Jack Skellington", movie:"The Nightmare Before Christmas", collection:"Dreamlight Valley" },
-{ id:"sally", name:"Sally", movie:"The Nightmare Before Christmas", collection:"Dreamlight Valley" },
-
-{ id:"jafar", name:"Jafar", movie:"Aladdin", collection:"Eternity Isle" },
-{ id:"gaston", name:"Gaston", movie:"Beauty and the Beast", collection:"Eternity Isle" },
-{ id:"rapunzel", name:"Rapunzel", movie:"Tangled", collection:"Eternity Isle" },
-{ id:"eve", name:"EVE", movie:"WALL-E", collection:"Eternity Isle" },
-{ id:"oswald", name:"Oswald", movie:"Oswald the Lucky Rabbit", collection:"Eternity Isle" },
-
-{ id:"merida", name:"Merida", movie:"Brave", collection:"Storybook Vale" },
-{ id:"hades", name:"Hades", movie:"Hercules", collection:"Storybook Vale" },
-{ id:"aurora", name:"Aurora", movie:"Sleeping Beauty", collection:"Storybook Vale" },
-{ id:"maleficent", name:"Maleficent", movie:"Sleeping Beauty", collection:"Storybook Vale" },
-{ id:"flynn", name:"Flynn", movie:"Tangled", collection:"Storybook Vale" },
-
-{ id:"cruella", name:"Cruella", movie:"One Hundred and One Dalmatians", collection:"Wishblossom Mountains" },
-{ id:"tinker-bell", name:"Tinker Bell", movie:"Peter Pan", collection:"Wishblossom Mountains" },
-{ id:"snow-white", name:"Snow White", movie:"Snow White", collection:"Wishblossom Mountains" },
-{ id:"tigger", name:"Tigger", movie:"Winnie the Pooh", collection:"Wishblossom Mountains" },
-
-{ id:"eeyore", name:"Eeyore", movie:"Winnie the Pooh", collection:"Honeyglow Woods" },
-{ id:"piglet", name:"Piglet", movie:"Winnie the Pooh", collection:"Honeyglow Woods" },
-{ id:"winnie-the-pooh", name:"Winnie the Pooh", movie:"Winnie the Pooh", collection:"Honeyglow Woods" },
-
-{ id:"tiana", name:"Tiana", movie:"The Princess and the Frog", collection:"Dreamlight Valley" },
-{ id:"hercules", name:"Hercules", movie:"Hercules", collection:"Storybook Vale" },
-{ id:"lady", name:"Lady", movie:"Lady and the Tramp", collection:"Dreamlight Valley" },
-{ id:"peter-pan", name:"Peter Pan", movie:"Peter Pan", collection:"Storybook Vale" },
-{ id:"the-forgotten", name:"The Forgotten", movie:"Disney Dreamlight Valley", collection:"Dreamlight Valley" },
-{ id:"pocahontas", name:"Pocahontas", movie:"Pocahontas", collection:"Dreamlight Valley" },
-{ id:"joy", name:"Joy", movie:"Inside Out", collection:"Dreamlight Valley" },
-{ id:"tramp", name:"Tramp", movie:"Lady and the Tramp", collection:"Dreamlight Valley" },
-{ id:"sadness", name:"Sadness", movie:"Inside Out", collection:"Dreamlight Valley" },
-{ id:"phil", name:"Phil", movie:"Hercules", collection:"Storybook Vale" },
-{ id:"black-rabbit", name:"Black Rabbit", movie:"Disney Dreamlight Valley", collection:"Wishblossom Mountains" }
-
-];
+    return true;
+}
 
 
 /* =====================================================
@@ -2360,20 +2310,13 @@ window.onclick =
 
 function getCharacterImage(character) {
 
-    return (
+    if (character && character.image) {
+        return character.image;
+    }
 
-        "https://dreamlightvalleywiki.com/" +
-
-        "Special:FilePath/" +
-
-        encodeURIComponent(
-            character.name
-        ) +
-
-        ".png"
-
+    return createPlaceholder(
+        character?.name || "Character"
     );
-
 }
 
 
@@ -2398,10 +2341,16 @@ function createPlaceholder(name) {
 
 document.addEventListener(
     "DOMContentLoaded",
-    function() {
+    async function() {
 
-        loadTracker();
+        const databaseLoaded =
+            await loadCharacterDatabase();
 
+        if (!databaseLoaded) {
+            return;
+        }
+
+        await loadTracker();
     }
 );
 
